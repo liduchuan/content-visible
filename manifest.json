@@ -1,7 +1,7 @@
 {
 	"id": "content-visible",
-	"name": "content visible",
-	"version": "0.0.1",
+	"name": "Content Visible",
+	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
 	"description": "Toggle content visibility in the editor view.",
 	"author": "Alex",
