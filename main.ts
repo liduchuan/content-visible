@@ -1,85 +1,141 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { MarkdownView, Plugin, WorkspaceLeaf } from 'obsidian';
 
-// Remember to rename these classes and interfaces!
-
-interface MyPluginSettings {
-	mySetting: string;
+interface ContentViewSettings {
+	contentVisible: boolean;
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
+const DEFAULT_SETTINGS: ContentViewSettings = {
+	contentVisible: true
 }
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class ContentViewPlugin extends Plugin {
+	settings: ContentViewSettings;
+	private statusBarItem: HTMLElement;
 
 	async onload() {
 		await this.loadSettings();
 
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (_evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('my-plugin-ribbon-class');
+		// Add status bar item
+		this.statusBarItem = this.addStatusBarItem();
+		this.updateStatusBar();
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
+		// Register the view action button
+		this.registerEvent(
+			this.app.workspace.on('active-leaf-change', () => {
+				this.addViewActionButtons();
+			})
+		);
 
-		// This adds a simple command that can be triggered anywhere
+		// Add command to toggle content visibility
 		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
+			id: 'toggle-content-visibility',
+			name: 'Toggle content visibility',
 			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, _view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
+				this.toggleContentVisibility();
 			}
 		});
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
+		// Initial setup
+		this.addViewActionButtons();
+		this.applyContentVisibility();
 	}
 
 	onunload() {
+		// Remove all view action buttons
+		document.querySelectorAll('.content-visible-toggle-button').forEach(el => el.remove());
+		// Remove the CSS class
+		document.body.removeClass('content-visible-hidden');
+	}
 
+	addViewActionButtons() {
+		// Remove existing buttons first
+		document.querySelectorAll('.content-visible-toggle-button').forEach(el => el.remove());
+
+		// Get all leaf view headers
+		const leaves = this.app.workspace.getLeavesOfType('markdown');
+		leaves.forEach((leaf: WorkspaceLeaf) => {
+			this.addButtonToLeaf(leaf);
+		});
+	}
+
+	addButtonToLeaf(leaf: WorkspaceLeaf) {
+		const view = leaf.view;
+		if (!(view instanceof MarkdownView)) return;
+
+		// Find the view actions container in the header
+		const viewHeader = (leaf as WorkspaceLeaf & { containerEl?: HTMLElement }).containerEl?.querySelector('.view-header');
+		const viewActions = viewHeader?.querySelector('.view-actions');
+
+		if (!viewActions) return;
+
+		// Check if button already exists
+		if (viewActions.querySelector('.content-visible-toggle-button')) return;
+
+		// Create the toggle button
+		const button = viewActions.createDiv({
+			cls: 'clickable-icon view-action content-visible-toggle-button',
+			attr: {
+				'aria-label': this.settings.contentVisible ? 'Hide content' : 'Show content'
+			}
+		});
+
+		// Add icon
+		this.updateButtonIcon(button);
+
+		// Add click handler
+		button.addEventListener('click', (e: MouseEvent) => {
+			e.preventDefault();
+			this.toggleContentVisibility();
+		});
+
+		// Insert button before other view actions
+		const firstAction = viewActions.querySelector('.view-action');
+		if (firstAction) {
+			viewActions.insertBefore(button, firstAction);
+		} else {
+			viewActions.appendChild(button);
+		}
+	}
+
+	updateButtonIcon(button: HTMLElement) {
+		button.empty();
+		const iconName = this.settings.contentVisible ? 'eye' : 'eye-off';
+		button.innerHTML = this.getIconSvg(iconName);
+	}
+
+	getIconSvg(iconName: string): string {
+		if (iconName === 'eye') {
+			return `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+		} else {
+			return `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
+		}
+	}
+
+	toggleContentVisibility() {
+		this.settings.contentVisible = !this.settings.contentVisible;
+		this.saveSettings();
+		this.applyContentVisibility();
+		this.updateAllButtons();
+		this.updateStatusBar();
+	}
+
+	applyContentVisibility() {
+		if (this.settings.contentVisible) {
+			document.body.removeClass('content-visible-hidden');
+		} else {
+			document.body.addClass('content-visible-hidden');
+		}
+	}
+
+	updateAllButtons() {
+		document.querySelectorAll('.content-visible-toggle-button').forEach((button) => {
+			this.updateButtonIcon(button as HTMLElement);
+			button.setAttribute('aria-label', this.settings.contentVisible ? 'Hide content' : 'Show content');
+		});
+	}
+
+	updateStatusBar() {
+		this.statusBarItem.setText(this.settings.contentVisible ? '👁️ Visible' : '🚫 Hidden');
 	}
 
 	async loadSettings() {
@@ -88,47 +144,5 @@ export default class MyPlugin extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(this.settings);
-	}
-}
-
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
-
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
-	}
-}
-
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
-
-	constructor(app: App, plugin: MyPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
-
-	display(): void {
-		const {containerEl} = this;
-
-		containerEl.empty();
-
-		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
 	}
 }

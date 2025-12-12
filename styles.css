@@ -1,8 +1,32 @@
-/*
+/* content visible Plugin Styles */
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+/* Hide content area when the plugin is toggled off */
+body.content-visible-hidden .markdown-preview-view,
+body.content-visible-hidden .cm-editor,
+body.content-visible-hidden .markdown-source-view,
+body.content-visible-hidden .markdown-reading-view {
+  display: none !important;
+}
 
-If your plugin does not need CSS, delete this file.
+/* Keep the view header visible */
+body.content-visible-hidden .view-header {
+  display: flex !important;
+}
 
-*/
+/* Ensure the toggle button is always visible */
+.content-visible-toggle-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  cursor: pointer;
+}
+
+.content-visible-toggle-button:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.content-visible-toggle-button svg {
+  width: 16px;
+  height: 16px;
+}
